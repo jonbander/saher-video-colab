@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#111827">
+  <title>ساهر — مختبر الفيديو</title>
+  <style>
+    :root { color-scheme: dark; --bg:#0b1020; --panel:#141c30; --muted:#a8b3c7; --line:#29344d; --accent:#8b9cfb; --ok:#8ce0c0; }
+    * { box-sizing:border-box }
+    body { margin:0; min-height:100vh; background:radial-gradient(ellipse at 70% -10%,#26345f 0,transparent 50%),var(--bg); color:#f5f7ff; font-family:system-ui,-apple-system,"Segoe UI",sans-serif; }
+    main { width:min(760px,100%); margin:auto; padding:28px 18px 56px }
+    header { padding:22px 0 14px }
+    .eyebrow { color:var(--accent); font-size:.86rem; font-weight:700; letter-spacing:.03em }
+    h1 { font-size:clamp(2rem,8vw,3.3rem); margin:.35rem 0; letter-spacing:-.04em }
+    header p,.hint { color:var(--muted); line-height:1.8 }
+    .card { border:1px solid var(--line); background:linear-gradient(145deg,rgba(26,36,60,.96),rgba(17,25,43,.96)); border-radius:22px; padding:20px; box-shadow:0 18px 50px #0003 }
+    label { display:block; font-weight:700; margin-bottom:10px }
+    textarea { width:100%; min-height:142px; resize:vertical; padding:14px; border:1px solid var(--line); border-radius:14px; background:#0c1425; color:#f5f7ff; font:inherit; line-height:1.7 }
+    textarea:focus { outline:2px solid var(--accent); border-color:transparent }
+    button { border:0; border-radius:13px; padding:14px 18px; color:#11172b; background:var(--accent); font:inherit; font-weight:800; cursor:pointer; min-height:50px }
+    button:disabled { opacity:.55; cursor:wait }
+    .row { display:flex; align-items:center; gap:12px; margin-top:14px; flex-wrap:wrap }
+    #status { color:var(--muted); min-height:1.5em }
+    .hint { font-size:.9rem; margin:12px 0 0 }
+    .result { margin-top:18px; display:none }
+    video { width:100%; max-height:60vh; border-radius:14px; background:#05070d }
+    .note { margin-top:24px; padding:14px 16px; border-right:3px solid var(--accent); background:#111a2b; border-radius:10px; color:var(--muted); line-height:1.8; font-size:.9rem }
+    code { direction:ltr; unicode-bidi:isolate; color:#d7ddff }
+    @media(min-width:650px){ main{padding-top:46px}.card{padding:26px} }
+  </style>
+</head>
+<body>
+<main>
+  <header>
+    <div class="eyebrow">مختبر توليد الفيديو · نسخة أولية</div>
+    <h1>ساهر</h1>
+    <p>اكتب وصفاً للمشهد وأرسل مهمة إلى محرك توليد متصل عبر ComfyUI. التوليد يعمل على خادم GPU، لا على الهاتف.</p>
+  </header>
+  <section class="card" aria-labelledby="prompt-label">
+    <form id="form">
+      <label id="prompt-label" for="prompt">وصف الفيديو</label>
+      <textarea id="prompt" maxlength="4000" minlength="3" required placeholder="مثال: لقطة سينمائية لمدينة ساحلية وقت الغروب، حركة كاميرا بطيئة وألوان دافئة…"></textarea>
+      <div class="row">
+        <button id="submit" type="submit">إنشاء المهمة</button>
+        <span id="status" role="status" aria-live="polite"></span>
+      </div>
+    </form>
+    <p class="hint">الإصدار الحالي يرسل نصاً فقط إلى workflow محدد مسبقاً. رفع الصور واختيار النموذج والتحكم بالدقة ستضاف بعد تثبيت محركات النسخة الأولى.</p>
+    <div id="result" class="result">
+      <video id="video" controls playsinline></video>
+      <div id="other-outputs"></div>
+    </div>
+  </section>
+  <aside class="note">هذه نسخة تجريبية محلية وليست خدمة إنتاجية. لا تعرضها على الإنترنت العام من دون مصادقة، عزل للمستخدمين، تحديد للموارد، وضوابط للمدخلات والملفات.</aside>
+</main>
+<script>
+const form=document.querySelector('#form'), promptBox=document.querySelector('#prompt');
+const submitButton=document.querySelector('#submit'), statusBox=document.querySelector('#status');
+const resultBox=document.querySelector('#result'), video=document.querySelector('#video'), other=document.querySelector('#other-outputs');
+const sleep=ms=>new Promise(resolve=>setTimeout(resolve,ms));
+form.addEventListener('submit',async event=>{
+  event.preventDefault(); submitButton.disabled=true; resultBox.style.display='none'; other.replaceChildren(); video.removeAttribute('src');
+  try {
+    statusBox.textContent='جارٍ إرسال المهمة…';
+    const response=await fetch('/api/v1/jobs',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({prompt:promptBox.value.trim()})});
+    const submitted=await response.json(); if(!response.ok) throw new Error(submitted.detail||'تعذر إرسال المهمة');
+    const jobId=submitted.job_id; statusBox.textContent='أُرسلت المهمة. جارٍ انتظار GPU…';
+    for(let attempt=0;attempt<360;attempt++) {
+      await sleep(2500);
+      const r=await fetch(`/api/v1/jobs/${encodeURIComponent(jobId)}`); const job=await r.json();
+      if(!r.ok) throw new Error(job.detail||'تعذر متابعة المهمة');
+      if(job.state==='completed') {
+        statusBox.textContent='اكتمل التوليد.'; resultBox.style.display='block';
+        for(const asset of job.outputs||[]) {
+          if(asset.content_type.startsWith('video/')) { video.src=asset.url; }
+          else { const link=document.createElement('a'); link.href=asset.url; link.textContent=`تنزيل ${asset.filename}`; link.style.display='block'; link.style.marginTop='12px'; other.append(link); }
+        }
+        if(!job.outputs?.length) statusBox.textContent='انتهى workflow من دون مخرجات قابلة للمعاينة.';
+        return;
+      }
+      if(job.state==='failed') throw new Error(job.error||'فشل التوليد داخل المحرك');
+      if(job.state==='unknown') throw new Error('المهمة غير موجودة في طابور المحرك؛ تحقق من سجلات ComfyUI.');
+      statusBox.textContent=job.state==='running'?'المحرك ينشئ الفيديو…':'المهمة في قائمة الانتظار…';
+    }
+    throw new Error('انتهت مهلة الانتظار في الواجهة. افحص المهمة في ComfyUI؛ قد يستمر التوليد هناك.');
+  } catch(error) { statusBox.textContent=error.message||'حدث خطأ غير متوقع.'; }
+  finally { submitButton.disabled=false; }
+});
+</script>
+</body>
+</html>

@@ -1,0 +1,14 @@
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.venv/
+.env
+*.log
+*.mp4
+*.webm
+*.safetensors
+*.ckpt
+*.pth
+checkpoints/
+models/
