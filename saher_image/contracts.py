@@ -27,8 +27,8 @@ class JobStatus:
     error: str | None = None
 
 
-class VideoProvider(Protocol):
-    """Small adapter boundary; providers own remote job IDs and status polling."""
+class GenerationProvider(Protocol):
+    """Adapter boundary; providers own remote job IDs, polling, and output assets."""
 
     def submit(self, prompt: str) -> str: ...
 

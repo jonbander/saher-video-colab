@@ -2,11 +2,11 @@ from pathlib import Path
 import re
 
 from fastapi import FastAPI, HTTPException
-from fastapi.responses import FileResponse, HTMLResponse, Response
+from fastapi.responses import HTMLResponse, Response
 from pydantic import BaseModel, Field
 
-from saher_video.config import Settings
-from saher_video.providers.comfyui import ComfyUIProvider, ProviderError
+from saher_image.config import Settings
+from saher_image.providers.comfyui import ComfyUIProvider, ProviderError
 
 ROOT = Path(__file__).resolve().parent.parent
 WEB = ROOT / "web" / "static"
@@ -21,7 +21,7 @@ if settings.workflow_path.is_file():
         timeout_seconds=settings.timeout_seconds,
     )
 
-app = FastAPI(title="Saher Video API", version="0.1.0")
+app = FastAPI(title="Saher Image API", version="0.2.0")
 JOB_ID_PATTERN = re.compile(r"^[A-Za-z0-9_-]{16,64}$")
 
 
@@ -33,7 +33,7 @@ def get_provider() -> ComfyUIProvider:
     if provider is None:
         raise HTTPException(
             status_code=503,
-            detail="لم يتم إعداد ملف workflow API صالح لـ ComfyUI. راجع docs/quickstart-ar.md.",
+            detail="لم يتم إعداد ملف workflow API صالح لتوليد الصور. راجع docs/quickstart-ar.md.",
         )
     return provider
 

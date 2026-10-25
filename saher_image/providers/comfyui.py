@@ -1,12 +1,13 @@
 from __future__ import annotations
 
 import json
+import secrets
 from pathlib import Path
 from urllib.parse import urljoin
 
 import httpx
 
-from saher_video.contracts import JobState, JobStatus, OutputAsset
+from saher_image.contracts import JobState, JobStatus, OutputAsset
 
 
 class ProviderError(RuntimeError):
@@ -57,6 +58,12 @@ class ComfyUIProvider:
         if not isinstance(inputs, dict) or self.prompt_input not in inputs:
             raise ProviderError("Prompt input is not present in the configured workflow node")
         inputs[self.prompt_input] = prompt
+        for candidate in workflow.values():
+            if not isinstance(candidate, dict) or candidate.get("class_type") != "KSampler":
+                continue
+            sampler_inputs = candidate.get("inputs")
+            if isinstance(sampler_inputs, dict) and "seed" in sampler_inputs:
+                sampler_inputs["seed"] = secrets.randbelow(2**53)
         return workflow
 
     def submit(self, prompt: str) -> str:
